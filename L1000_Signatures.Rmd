@@ -1,0 +1,252 @@
+---
+title: "Obtain and Plot L1000 Signatures"
+output: html_notebook
+---
+
+```{r}
+L1000_signature_data <- read.table(file = "matPH3_2_1_0.2_0.3_L1000_Batch2017_Regina_removed.txt", row.names = 1, header = TRUE)
+
+head(L1000_signature_data)
+
+target_compound <- "triptolide"
+
+compound_sig <- as.data.frame(t(subset(L1000_signature_data, rownames(L1000_signature_data) == target_compound)))
+compound_sig <- subset(compound_sig, compound_sig$triptolide != 0)
+
+data <- compound_sig$triptolide
+names(data) <- rownames(compound_sig)
+data
+
+barplot(data, horiz = TRUE, col = "red")
+
+pheatmap::pheatmap(compound_sig, cluster_cols = FALSE)
+
+pdf(file = "triptolide_sig_heatmap.pdf")
+pheatmap::pheatmap(compound_sig, cluster_cols = FALSE)
+dev.off()
+```
+
+# So now subset this signature for genes within different medulloblastoma disease signatures. A good way to pick which one is ideal is to find which one this drug reverses the disease signature most of. 
+
+So let's load in the medulloblastoma disease signature data from Anna. 
+- This is a microarray dataset, so some genes have multiple probes. These probes are labeled for specificity, but for this purpose we will just average duplicate rows, so each gene's reported fold-change is representative of all probes for each gene. 
+
+First, we should subset columns that are averagable.. ie. numeric
+So Fold-change.
+
+Then we will avverage the fold changes within each gene, and use that to calculate signature overlap with compound response signatures. 
+
+```{r}
+library(dplyr)
+MedulloSigs <- read.csv(file = "MedulloSigs.csv", skip = 1, header = TRUE)
+head(MedulloSigs)
+
+myvars <- c("Gene.Symbol", "Log2FC_G4", "Log2FC_G3", "Log2FC_WNT", "Log2FC_SHH")
+dat <- MedulloSigs[myvars]
+
+myvars2 <- c("Log2FC_G4", "Log2FC_G3", "Log2FC_WNT", "Log2FC_SHH")
+dat2 <- dat %>% group_by(Gene.Symbol) %>% mutate_each(funs(mean), -(0)) %>% distinct
+
+head(dat2)
+rownames(dat2) <- dat2$Gene.Symbol
+
+MedulloSigs <- dat2
+rm(dat)
+rm(dat2)
+```
+
+# Now, let's subset this medullo data for the genes that are in the compound response signature. Then, we can assess differential discordance. 
+
+```{r}
+head(MedulloSigs)
+```
+
+```{r}
+head(compound_sig)
+cmpdGenes <- rownames(compound_sig)
+  # obj.transpose <- t(obj@assays$SCT@scale.data) 
+  cmpd_overlap <- rownames(MedulloSigs)[which(rownames(MedulloSigs) %in% cmpdGenes)]
+  overlap <- MedulloSigs[cmpd_overlap,] # FileA
+  overlap
+  rownames(overlap) <- overlap$Gene.Symbol
+  
+  # overlap$Gene.Symbol <- NULL
+  head(overlap)
+  
+  cmpd_ordered <- as.numeric(as.vector(t(compound_sig)))
+  names(cmpd_ordered) <- rownames(compound_sig)
+  cmpd_ordered
+  cmpd_ordered2 <- cmpd_ordered[cmpd_overlap] # Character list in brackets orders to fit that character list...
+  
+  cmpd_ordered2
+  
+  print("Check that genes are all in the right order... ")
+  head(rownames(overlap) == names(cmpd_ordered2))
+  
+  #
+  head(rownames(overlap))
+  head(names(cmpd_ordered2))
+  
+```
+
+# Now set up each different tumor type as a vector or whatever to be able to calculate SC for each...  
+  
+```{r}
+
+# SHH
+head(overlap)
+SHH <- overlap$Log2FC_SHH
+names(SHH) <- rownames(overlap)  
+  
+# Check that everything is still in the right order here...
+print("Check that genes are all in the right order... ")
+head(names(SHH) == names(cmpd_ordered2))
+
+SC.SHH <- cor(cmpd_ordered2, SHH, method = "spearman")
+  
+# WNT
+head(overlap)
+WNT <- overlap$Log2FC_WNT
+names(WNT) <- rownames(overlap)  
+  
+# Check that everything is still in the right order here...
+print("Check that genes are all in the right order... ")
+head(names(WNT) == names(cmpd_ordered2))
+
+SC.WNT <- cor(cmpd_ordered2, WNT, method = "spearman")
+
+# G3
+head(overlap)
+G3 <- overlap$Log2FC_G3
+names(G3) <- rownames(overlap)  
+  
+# Check that everything is still in the right order here...
+print("Check that genes are all in the right order... ")
+head(names(G3) == names(cmpd_ordered2))
+
+SC.G3 <- cor(cmpd_ordered2, G3, method = "spearman")
+
+# G4
+head(overlap)
+G4 <- overlap$Log2FC_G4
+names(G4) <- rownames(overlap)  
+  
+# Check that everything is still in the right order here...
+print("Check that genes are all in the right order... ")
+head(names(G4) == names(cmpd_ordered2))
+
+SC.G4 <- cor(cmpd_ordered2, G4, method = "spearman")
+
+```
+
+# So how do we make a figure showing that g3 is predicted over SHH, others?
+
+First, can we subset to a signature that we can visualize by thresholding on fold change?
+
+```{r}
+G3
+
+df <- as.data.frame(G3)
+df
+
+th <- subset(df, df$G3 > 0.1 | df$G3 < -0.1)
+
+th
+
+L1000_signature_data <- read.table(file = "matPH3_2_1_0.2_0.3_L1000_Batch2017_Regina_removed.txt", row.names = 1, header = TRUE)
+
+head(L1000_signature_data)
+
+target_compound <- "triptolide"
+
+compound_sig <- as.data.frame(t(subset(L1000_signature_data, rownames(L1000_signature_data) == target_compound)))
+compound_sig <- subset(compound_sig, rownames(compound_sig) %in% rownames(th))
+
+data <- compound_sig$triptolide
+names(data) <- rownames(compound_sig)
+data
+
+barplot(data, horiz = TRUE, col = "red")
+
+pheatmap::pheatmap(compound_sig, cluster_cols = FALSE)
+
+pdf(file = "triptolide_subset_sig_heatmap.pdf")
+pheatmap::pheatmap(compound_sig, cluster_cols = FALSE)
+dev.off()
+```
+
+# Now, can we just make a barplot of the spearman correlations?
+
+```{r}
+data <- as.numeric(c(SC.G3, SC.G4, SC.WNT, SC.SHH))
+names(data) <- c("G3", "G4", "WNT", "SHH")
+data
+
+barplot(data, horiz = TRUE, col = "red")
+pdf(file = "triptolide_spearmancorrelation_barplot.pdf")
+barplot(data, horiz = TRUE, col = "red")
+dev.off()
+```
+
+# Now, it would be pretty cool to cluster the data on this signature and see how it looks...
+
+```{r}
+library(dplyr)
+MedulloSigs <- read.csv(file = "MedulloSigs.csv", skip = 1, header = TRUE)
+head(MedulloSigs)
+
+'%nin%' = Negate('%in%')
+cols <- colnames(MedulloSigs)
+cols
+myvars <- subset(cols, cols %nin% c("Log2FC_G4", "Log2FC_G3", "Log2FC_WNT", "Log2FC_SHH", "MEDIAN_OVERALL", "MEDIAN_G4", "MEDIAN_G3", "MEDIAN_WNT", "MEDIAN_SHH", "X.1", "Probe.Set.ID", "X.2", "X.3", "X.4", "X.5", "X.6", "X.7", "X"))
+dat <- MedulloSigs[myvars]
+# head(dat)
+# myvars2 <- c("Log2FC_G4", "Log2FC_G3", "Log2FC_WNT", "Log2FC_SHH")
+# rownames(dat) <- dat$Gene.Symbol
+dat <- subset(dat, dat$Gene.Symbol %in% colnames(L1000_signature_data))
+head(dat)
+```
+
+```{r}
+dat2 <- dat %>% group_by(Gene.Symbol) %>% mutate_each(funs(mean), -(0)) %>% distinct
+
+head(dat2)
+rownames(dat2) <- dat2$Gene.Symbol
+
+# MedulloSigs <- dat2
+# rm(dat)
+# rm(dat2)
+
+head(dat2)
+
+names(cmpd_ordered)
+
+dat3 <- subset(dat2, rownames(dat2) %in% rownames(compound_sig))
+
+dat4<-dat3
+dat4$Gene.Symbol <- NULL
+rownames(dat4) <- dat3$Gene.Symbol
+
+# rownames(dat3) <- dat3$Gene.Symbol
+# dat3$Gene.Symbol <- NULL
+pheatmap::pheatmap(dat4, scale = "row")
+
+# How can we annotate this real quick. 
+
+g <- as.data.frame(colnames(dat4))
+g
+for (i in 1:length(g$`colnames(dat4)`)){
+  g$type[i] <- unlist(strsplit(as.character(g$`colnames(dat4)`[i]), split = ".", fixed = TRUE))[[1]]
+}
+g
+e <- g
+rownames(e) <- g$`colnames(dat4)`
+e
+e$`colnames(dat4)` <- NULL
+pheatmap::pheatmap(dat4, scale = "row", annotation_col = e)
+
+pdf(file = "triptolide_mb_clusteringHeatmap.pdf")
+pheatmap::pheatmap(dat4, scale = "row", annotation_col = e)
+dev.off()
+```
+
