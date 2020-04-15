@@ -250,3 +250,45 @@ pheatmap::pheatmap(dat4, scale = "row", annotation_col = e)
 dev.off()
 ```
 
+# Can we add a row annotation indicating whether the drug increases or decreases expression?
+
+Need drug signature as a dataframe, add a new column that indicates direction of expression shift. 
+
+```{r}
+compound_sig_anno <- compound_sig
+head(compound_sig_anno)
+
+for (i in 1:length(compound_sig_anno$triptolide)){
+  if(compound_sig_anno$triptolide[i] > 0){
+    compound_sig_anno$response[i] <- "Increased"
+  }
+  if(compound_sig_anno$triptolide[i] < 0){
+    compound_sig_anno$response[i] <- "Decreased"
+  }
+}
+
+compound_sig_anno
+
+row_anno <- as.data.frame(compound_sig_anno$response)
+rownames(row_anno) <- rownames(compound_sig)
+colnames(row_anno) <- c("Response")
+row_anno
+
+head(e)
+colnames(e) <- c("Type")
+
+pdf(file = "triptolide_mb_clusteringHeatmap2.pdf")
+pheatmap::pheatmap(dat4, scale = "row", annotation_col = e, annotation_row = row_anno, show_colnames = FALSE, annotation_names_row = FALSE, annotation_colors = list(
+  Type = c(SHH = "violet", WNT = "yellow", G3 = "aquamarine",G4 = "orange"),
+  Response = c(Decreased = "cyan", Increased = "red3")
+))
+dev.off()
+
+
+pheatmap::pheatmap(dat4, scale = "row", annotation_col = e, annotation_row = row_anno, show_colnames = FALSE, annotation_names_row = FALSE, annotation_colors = list(
+  Type = c(SHH = "violet", WNT = "yellow", G3 = "aquamarine",G4 = "orange"),
+  Response = c(Decreased = "cyan", Increased = "red3")
+))
+
+```
+
